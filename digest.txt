@@ -1,3 +1,20 @@
+Directory structure:
+└── branding-generator/
+    ├── README.md
+    ├── main.py
+    ├── requirements.txt
+    └── font/
+        └── RussoOne-Regular.ttf
+
+================================================
+FILE: README.md
+================================================
+# branding-generator
+
+
+================================================
+FILE: main.py
+================================================
 from pathlib import Path
 import os
 from xml.etree import ElementTree as ET
@@ -81,7 +98,8 @@ class Branding:
         file = []
         for f in os.listdir(path):
             f = str(f)
-            if f.endswith(ends): file.append(f)
+            if f.endswith(ends):
+                file.append(f)
         return file
 
     def crop_svgs(self):
@@ -100,3 +118,19 @@ class Branding:
 if __name__ == "__main__":
     app = Branding()
     app.main()
+
+
+
+================================================
+FILE: requirements.txt
+================================================
+svgpathtools
+cairosvg
+
+
+
+================================================
+FILE: font/RussoOne-Regular.ttf
+================================================
+[Binary file]
+
