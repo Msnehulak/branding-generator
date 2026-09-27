@@ -1,0 +1,67 @@
+name: Branding Assets Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: branding-pipeline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-branding-assets:
+    name: Generate Branding Assets
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install system dependencies (Inkscape, fontconfig, libcairo)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y inkscape fontconfig libcairo2-dev
+
+      - name: Install SVGO globally
+        run: |
+          npm install -g svgo
+          svgo --version
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Branding Pipeline
+        run: |
+          python main.py --clean
+
+      - name: Verify generated assets
+        run: |
+          echo "Generated assets in output/:"
+          ls -lhR output/
+          if [ -z "$(ls -A output/svg/)" ]; then
+            echo "Error: Output SVG directory is empty!"
+            exit 1
+          fi
+
+      - name: Upload Branding Assets Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: branding-assets
+          path: output/
+          retention-days: 30

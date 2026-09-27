@@ -1,10 +1,28 @@
 Directory structure:
 └── branding-generator/
     ├── README.md
+    ├── cfg.py
     ├── main.py
     ├── requirements.txt
-    └── font/
-        └── RussoOne-Regular.ttf
+    ├── doc/
+    │   └── folders.md
+    ├── font/
+    │   ├── RussoOne-Regular.ttf
+    │   └── TiltNeon-Regular-VariableFont_XROT,YROT.ttf
+    ├── freecad/
+    │   └── logo.FCStd
+    ├── scripts/
+    │   ├── __init__.py
+    │   ├── check_deps.py
+    │   ├── convert_text.py
+    │   ├── embed_svg.py
+    │   ├── main.py
+    │   ├── optimize_svg.py
+    │   ├── pipeline.py
+    │   └── rasterize.py
+    └── .github/
+        └── workflows/
+            └── branding.yml
 
 ================================================
 FILE: README.md
@@ -13,119 +31,77 @@ FILE: README.md
 
 
 ================================================
+FILE: cfg.py
+================================================
+"""Configuration file for branding asset generation pipeline."""
+
+from typing import Dict, Tuple
+
+# Mapping of SVG filenames to target raster resolutions (width, height in pixels).
+# Add your preset files here to customize their PNG export dimensions.
+RESOLUTIONS: Dict[str, Tuple[int, int]] = {
+    # 4K UHD resolutions
+    "sotial_logo.svg": (3840, 3840),
+    "logo.svg": (3840, 3840),
+    # 2K / QHD resolutions
+    "text.svg": (2560, 1440),
+}
+
+# Základní šířka (2K báze) pro dynamický výpočet výšky podle poměru stran SVG,
+# pokud obrázek nemá definované přesné rozlišení v RESOLUTIONS.
+DEFAULT_BASE_WIDTH: int = 2560
+
+# Záložní rozlišení pro případ, že z SVG nelze načíst jeho poměr stran
+DEFAULT_RESOLUTION: Tuple[int, int] = (2560, 1440)
+
+
+
+================================================
 FILE: main.py
 ================================================
+"""Main entrypoint for the branding assets generator pipeline."""
+
+import sys
 from pathlib import Path
-import os
-from xml.etree import ElementTree as ET
-from svgpathtools import svg2paths, Path as SvgPath
-import cairosvg
 
+# Add project root to sys.path
 BASE_DIR = Path(__file__).resolve().parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
-
-RESOLUTIONS = {
-    'sd': (640, 480),
-    'hd': (1280, 720),
-    'fhd': (1920, 1080),
-    '4k': (3840, 2160),
-}
-
-FOLDERS = {
-    'row': BASE_DIR / 'base',
-    'crop_row': BASE_DIR / 'crop',
-    'brand': BASE_DIR / 'branding',
-}
-
-class Branding:
-    def __init__(self) -> None:
-        for folder in FOLDERS.values():
-            folder.mkdir(parents=True, exist_ok=True)
-
-    @staticmethod
-    def _crop_svg(input: str | Path, output: str | Path) -> None:
-        try:
-            paths, _ = svg2paths(str(input))
-            if not paths:
-                return
-
-            combined = SvgPath(*paths)
-            xmin, xmax, ymin, ymax = combined.bbox()
-            width = xmax - xmin
-            height = ymax - ymin
-
-            if width <= 0 or height <= 0:
-                return
-
-            tree = ET.parse(str(input))
-            root = tree.getroot()
-
-            root.set("viewBox", f"{xmin} {ymin} {width} {height}")
-            root.set("width", f"{width}px")
-            root.set("height", f"{height}px")
-
-            tree.write(output, encoding="utf-8", xml_declaration=True)
-        except Exception as e:
-            print(f"❌ Chyba při ořezu {input}: {e}")
-
-    @staticmethod
-    def _save_as_png(
-        input_path: str | Path,
-        output_path: str | Path,
-        size: str = 'hd',
-        transparent: bool = True,
-    ) -> None:
-        try:
-            width, height = RESOLUTIONS.get(size.lower(), (1280, 720))
-            
-            kwargs = {
-                "url": str(input_path),
-                "write_to": str(output_path),
-                "output_width": width,
-                "output_height": height,
-            }
-            
-            if not transparent:
-                kwargs["background_color"] = "white"
-
-            cairosvg.svg2png(**kwargs)
-            print(f"✅ PNG úspěšně vyexportováno do {output_path}")
-        except Exception as e:
-            print(f"❌ Chyba při exportu PNG {input_path}: {e}")
-
-    @staticmethod
-    def files_in_path(path, ends = '.svg'):
-        file = []
-        for f in os.listdir(path):
-            f = str(f)
-            if f.endswith(ends):
-                file.append(f)
-        return file
-
-    def crop_svgs(self):
-        row = self.files_in_path(FOLDERS['row'])
-        print('--- START: Croping')
-        for f in row:
-            inp = BASE_DIR / FOLDERS['row'] / f
-            out = BASE_DIR / FOLDERS['crop_row'] / f 
-            self._crop_svg(inp, out)
-            print(f'>>> Crop {f}')
-        print('--- END: Croping')
-        
-    def main(self):
-        self.crop_svgs()
+from scripts.pipeline import main
 
 if __name__ == "__main__":
-    app = Branding()
-    app.main()
+    main()
 
 
 
 ================================================
 FILE: requirements.txt
 ================================================
-svgpathtools
-cairosvg
+cairosvg>=2.7.0
+Pillow>=10.0.0
+svgpathtools>=1.6.0
+
+
+
+================================================
+FILE: doc/folders.md
+================================================
+# Folders:
+
+## Root
+| folder    | for what      | eg.       |
+| -         | -             | -         |
+| base/     | Base elemets  | logo      |
+| font/     | all fonts     | tilt neo  |
+| presets/  | combine multiple base elemts by lins | sotial PP |
+| doc/ | for documentation | folders types |
+| freecad/ | FreeCad files | logo geometric ver |
+| scripts/ | all code | optimes |
+| output/ | genetated branding | |
+
+
 
 
 
@@ -133,4 +109,1159 @@ cairosvg
 FILE: font/RussoOne-Regular.ttf
 ================================================
 [Binary file]
+
+
+================================================
+FILE: font/TiltNeon-Regular-VariableFont_XROT,YROT.ttf
+================================================
+[Binary file]
+
+
+================================================
+FILE: freecad/logo.FCStd
+================================================
+[Binary file]
+
+
+================================================
+FILE: scripts/__init__.py
+================================================
+"""Branding assets generation scripts package."""
+
+
+
+================================================
+FILE: scripts/check_deps.py
+================================================
+"""Step 0: Dependency verification and font registration."""
+
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from typing import Dict, List, Tuple
+
+
+class DependencyError(RuntimeError):
+    """Raised when one or more required dependencies are missing."""
+    pass
+
+
+def get_command_version(cmd: List[str]) -> Tuple[bool, str]:
+    """Run a version command and return (success, version_or_error_string)."""
+    try:
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+            timeout=15,
+        )
+        if result.returncode == 0:
+            version_str = (result.stdout.strip() or result.stderr.strip()).splitlines()[0]
+            return True, version_str
+        return False, result.stderr.strip() or f"Exited with code {result.returncode}"
+    except FileNotFoundError:
+        return False, "Command not found in PATH"
+    except Exception as e:
+        return False, str(e)
+
+
+def check_node() -> Tuple[bool, str]:
+    """Verify Node.js is installed."""
+    return get_command_version(["node", "--version"])
+
+
+def check_inkscape() -> Tuple[bool, str]:
+    """Verify Inkscape is installed."""
+    return get_command_version(["inkscape", "--version"])
+
+
+def check_svgo() -> Tuple[bool, str, List[str]]:
+    """Verify SVGO is installed directly or via npx."""
+    # Check if 'svgo' executable is available directly
+    if shutil.which("svgo"):
+        success, ver = get_command_version(["svgo", "--version"])
+        if success:
+            return True, ver, ["svgo"]
+
+    # Check via npx
+    if shutil.which("npx"):
+        success, ver = get_command_version(["npx", "--yes", "svgo", "--version"])
+        if success:
+            return True, f"via npx: {ver}", ["npx", "--yes", "svgo"]
+
+    return False, "Neither 'svgo' nor working 'npx svgo' found", []
+
+
+def verify_dependencies() -> Dict[str, str]:
+    """
+    Check all required dependencies and return their versions.
+    Raises DependencyError with clear remediation advice if any are missing.
+    """
+    print("\n🔍 [Krok 0] Kontrola systémových závislostí...")
+    errors: List[str] = []
+    versions: Dict[str, str] = {}
+
+    # Check Node.js
+    node_ok, node_ver = check_node()
+    if node_ok:
+        print(f"  ✅ Node.js:  {node_ver}")
+        versions["node"] = node_ver
+    else:
+        print(f"  ❌ Node.js:  CHYBÍ ({node_ver})")
+        errors.append(
+            "- Node.js: Nainstalujte Node.js (např. 'sudo apt install nodejs npm' nebo přes nvm https://nodejs.org/)."
+        )
+
+    # Check Inkscape
+    ink_ok, ink_ver = check_inkscape()
+    if ink_ok:
+        print(f"  ✅ Inkscape: {ink_ver}")
+        versions["inkscape"] = ink_ver
+    else:
+        print(f"  ❌ Inkscape: CHYBÍ ({ink_ver})")
+        errors.append(
+            "- Inkscape: Nainstalujte Inkscape (např. 'sudo apt install inkscape' nebo 'pacman -S inkscape')."
+        )
+
+    # Check SVGO
+    svgo_ok, svgo_ver, svgo_cmd = check_svgo()
+    if svgo_ok:
+        print(f"  ✅ SVGO:     {svgo_ver}")
+        versions["svgo"] = svgo_ver
+        versions["svgo_cmd"] = " ".join(svgo_cmd)
+    else:
+        print(f"  ❌ SVGO:     CHYBÍ ({svgo_ver})")
+        errors.append(
+            "- SVGO: Nainstalujte SVGO spuštěním 'npm install -g svgo' nebo ověřte dostupnost balíčku npm/npx."
+        )
+
+    # Check optional CairoSVG
+    try:
+        import cairosvg
+        cairo_version = getattr(cairosvg, "__version__", "dostupné")
+        print(f"  ✅ CairoSVG: {cairo_version} (Python)")
+        versions["cairosvg"] = str(cairo_version)
+    except ImportError:
+        print("  ⚠️  CairoSVG: Není nainstalováno v Pythonu (pro PNG export bude použit fallback přes Inkscape).")
+
+    if errors:
+        msg = "\n❌ Chybí potřebné závislosti pro spuštění branding pipeline:\n" + "\n".join(errors)
+        raise DependencyError(msg)
+
+    return versions
+
+
+def setup_fonts(font_dir: Path) -> List[str]:
+    """
+    Copy all font files (.ttf, .otf, etc.) from font_dir to ~/.local/share/fonts
+    and refresh the system font cache using fc-cache -f.
+    """
+    print(f"\n🔤 [Krok 0] Načítání písem ze složky: {font_dir}...")
+
+    if not font_dir.exists() or not font_dir.is_dir():
+        print(f"  ⚠️  Složka s fonty '{font_dir}' neexistuje.")
+        return []
+
+    target_font_dir = Path.home() / ".local" / "share" / "fonts"
+    target_font_dir.mkdir(parents=True, exist_ok=True)
+
+    font_extensions = {".ttf", ".otf", ".woff", ".woff2", ".ttc"}
+    installed_fonts: List[str] = []
+
+    for file in font_dir.iterdir():
+        if file.is_file() and file.suffix.lower() in font_extensions:
+            dest = target_font_dir / file.name
+            shutil.copy2(file, dest)
+            installed_fonts.append(file.name)
+            print(f"  📁 Zkopírován font: {file.name} -> {dest}")
+
+    if not installed_fonts:
+        print("  ℹ️  V zadané složce nebyly nalezeny žádné soubory písem.")
+        return []
+
+    # Refresh font cache
+    fc_cache_bin = shutil.which("fc-cache")
+    if fc_cache_bin:
+        print("  🔄 Spouštím aktualizaci font cache ('fc-cache -f ~/.local/share/fonts/')...")
+        res = subprocess.run(
+            [fc_cache_bin, "-f", str(target_font_dir)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        if res.returncode == 0:
+            print(f"  ✅ Font cache úspěšně obnovena pro {len(installed_fonts)} písem.")
+        else:
+            print(f"  ⚠️  Varování při fc-cache: {res.stderr.strip()}")
+    else:
+        print("  ⚠️  'fc-cache' nebyl nalezen v PATH. Nainstalujte 'fontconfig'.")
+
+    return installed_fonts
+
+
+def run(font_dir: Path) -> Dict[str, str]:
+    """Execute Step 0: check deps and set up fonts."""
+    versions = verify_dependencies()
+    setup_fonts(font_dir)
+    return versions
+
+
+if __name__ == "__main__":
+    try:
+        base_dir = Path(__file__).resolve().parent.parent
+        run(base_dir / "font")
+    except DependencyError as err:
+        print(f"\n{err}", file=sys.stderr)
+        sys.exit(1)
+
+
+
+================================================
+FILE: scripts/convert_text.py
+================================================
+"""Step 2: Inkscape text-to-path conversion."""
+
+import os
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
+from typing import List
+
+
+def convert_text_to_path(svg_file: Path, inkscape_bin: str = "inkscape") -> bool:
+    """
+    Execute Inkscape to convert all text in SVG to path outlines.
+    Uses --export-text-to-path and --export-area-drawing.
+    """
+    with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as tmp:
+        tmp_path = Path(tmp.name)
+
+    try:
+        cmd = [
+            inkscape_bin,
+            str(svg_file),
+            "--export-text-to-path",
+            "--export-area-page",
+            f"--export-filename={tmp_path}",
+        ]
+
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+
+        if result.returncode != 0:
+            print(
+                f"  ❌ Inkscape selhal pro '{svg_file.name}': {result.stderr.strip()}"
+            )
+            return False
+
+        if not tmp_path.exists() or tmp_path.stat().st_size == 0:
+            print(f"  ❌ Inkscape nevytvořil výstupní soubor pro '{svg_file.name}'.")
+            return False
+
+        # Overwrite original with the converted file
+        shutil.move(str(tmp_path), str(svg_file))
+        return True
+
+    finally:
+        if tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+
+
+def run(output_dir: Path) -> List[Path]:
+    """
+    Process all SVG files in output/ directory and convert all text to vector paths.
+    """
+    print(f"\n🖋️  [Krok 2] Převod textu na křivky (Inkscape) v: {output_dir}...")
+    inkscape_bin = shutil.which("inkscape")
+    if not inkscape_bin:
+        raise RuntimeError("Inkscape nebyl nalezen v PATH. Nainstalujte inkscape.")
+
+    svg_files = sorted(output_dir.glob("*.svg"))
+    if not svg_files:
+        print(f"  ℹ️  V '{output_dir}' nebyly nalezeny žádné SVG soubory.")
+        return []
+
+    successful: List[Path] = []
+    for svg_file in svg_files:
+        print(f"  Converting text: {svg_file.name}...")
+        if convert_text_to_path(svg_file, inkscape_bin):
+            print(f"  ✅ Text převeden na křivky: {svg_file.name}")
+            successful.append(svg_file)
+        else:
+            print(f"  ⚠️  Chyba při převodu textu v: {svg_file.name}")
+
+    return successful
+
+
+if __name__ == "__main__":
+    base_path = Path(__file__).resolve().parent.parent
+    run(base_path / "output")
+
+
+
+================================================
+FILE: scripts/embed_svg.py
+================================================
+"""Step 1: In-line embedding of externally linked elements in SVG files."""
+
+import base64
+import mimetypes
+import os
+import re
+from pathlib import Path
+from typing import Dict, List, Optional, Set, Tuple
+import xml.etree.ElementTree as ET
+
+SVG_NS = "http://www.w3.org/2000/svg"
+XLINK_NS = "http://www.w3.org/1999/xlink"
+INKSCAPE_NS = "http://www.inkscape.org/namespaces/inkscape"
+SODIPODI_NS = "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+
+COMMON_NAMESPACES = {
+    "": SVG_NS,
+    "svg": SVG_NS,
+    "xlink": XLINK_NS,
+    "inkscape": INKSCAPE_NS,
+    "sodipodi": SODIPODI_NS,
+}
+
+
+def register_svg_namespaces(file_paths: List[Path]) -> None:
+    """Extract and register all XML namespaces across given SVG files."""
+    registered: Dict[str, str] = dict(COMMON_NAMESPACES)
+
+    for path in file_paths:
+        if not path.is_file():
+            continue
+        try:
+            for _, node in ET.iterparse(str(path), events=["start-ns"]):
+                prefix, uri = node
+                if prefix not in registered:
+                    registered[prefix] = uri
+        except Exception:
+            pass
+
+    for prefix, uri in registered.items():
+        ET.register_namespace(prefix, uri)
+
+
+def resolve_linked_path(href: str, source_svg: Path, base_dir: Path) -> Optional[Path]:
+    """
+    Resolve a linked file path relative to the source SVG, project root,
+    or common asset directories like 'base/' or 'presets/'.
+    """
+    # Clean fragment identifier if present (e.g. file.svg#layer1)
+    clean_href = href.split("#")[0]
+    if not clean_href:
+        return None
+
+    candidates = [
+        source_svg.parent / clean_href,
+        base_dir / clean_href,
+        base_dir / "base" / clean_href,
+        base_dir / "presets" / clean_href,
+    ]
+
+    for candidate in candidates:
+        candidate_resolved = candidate.resolve()
+        if candidate_resolved.is_file():
+            return candidate_resolved
+
+    return None
+
+
+def get_href(elem: ET.Element) -> Optional[str]:
+    """Retrieve href attribute considering both SVG 2 and XLink namespaces."""
+    return elem.get(f"{{{XLINK_NS}}}href") or elem.get("href")
+
+
+def set_href(elem: ET.Element, href_value: str) -> None:
+    """Set href attribute updating both SVG 2 and XLink namespaces."""
+    if f"{{{XLINK_NS}}}href" in elem.attrib or elem.get(f"{{{XLINK_NS}}}href") is not None:
+        elem.set(f"{{{XLINK_NS}}}href", href_value)
+    elem.set("href", href_value)
+
+
+def prefix_ids_in_tree(tree_root: ET.Element, prefix: str) -> None:
+    """
+    Rename all element IDs with a unique prefix and update references
+    (url(#id) and xlink:href="#id") to prevent namespace/ID clashes.
+    """
+    id_map: Dict[str, str] = {}
+    for elem in tree_root.iter():
+        elem_id = elem.get("id")
+        if elem_id:
+            new_id = f"{prefix}_{elem_id}"
+            id_map[elem_id] = new_id
+            elem.set("id", new_id)
+
+    if not id_map:
+        return
+
+    # Update references in all elements
+    url_pattern = re.compile(r"url\(#([^)]+)\)")
+
+    for elem in tree_root.iter():
+        # Update hrefs (e.g., in <use> or <textPath>)
+        href = get_href(elem)
+        if href and href.startswith("#"):
+            old_ref = href[1:]
+            if old_ref in id_map:
+                set_href(elem, f"#{id_map[old_ref]}")
+
+        # Update attributes with url(#id) or style properties
+        for attr_name, attr_val in list(elem.attrib.items()):
+            if attr_name in ("href", f"{{{XLINK_NS}}}href", "id"):
+                continue
+
+            # Check style and presentation attributes (fill, stroke, clip-path, filter, mask)
+            if "url(#" in attr_val:
+                def replace_url(match: re.Match) -> str:
+                    ref_id = match.group(1)
+                    return f"url(#{id_map.get(ref_id, ref_id)})"
+
+                new_val = url_pattern.sub(replace_url, attr_val)
+                elem.set(attr_name, new_val)
+
+
+def clean_unit(val: Optional[str]) -> str:
+    """Strip CSS / SVG units (mm, cm, px, pt) and return raw value or 100%."""
+    if not val:
+        return "100%"
+    return re.sub(r"[a-zA-Z%]+$", "", val.strip())
+
+
+def embed_image_svg(image_elem: ET.Element, linked_svg_path: Path, embed_idx: int) -> ET.Element:
+    """
+    Convert an <image> element linking to an external SVG into a standalone
+    nested <svg> element containing all elements from the target SVG.
+    """
+    sub_tree = ET.parse(str(linked_svg_path))
+    sub_root = sub_tree.getroot()
+
+    # Prefix IDs to avoid collisions
+    prefix_ids_in_tree(sub_root, f"emb{embed_idx}")
+
+    # Create nested <svg> element
+    new_svg = ET.Element(f"{{{SVG_NS}}}svg")
+
+    # Inherit positioning & sizing from original <image> element
+    for attr in [
+        "x", "y", "width", "height", "transform", "style",
+        "id", "preserveAspectRatio", "clip-path", "mask", "opacity"
+    ]:
+        val = image_elem.get(attr)
+        if val is not None:
+            new_svg.set(attr, val)
+
+    # Transfer viewBox from linked SVG or generate from width/height
+    vb = sub_root.get("viewBox")
+    if vb:
+        new_svg.set("viewBox", vb)
+    else:
+        w = clean_unit(sub_root.get("width"))
+        h = clean_unit(sub_root.get("height"))
+        new_svg.set("viewBox", f"0 0 {w} {h}")
+
+    # Transfer all child elements of linked SVG root into nested <svg>
+    for child in list(sub_root):
+        new_svg.append(child)
+
+    return new_svg
+
+
+def embed_raster_image(image_elem: ET.Element, raster_path: Path) -> None:
+    """Embed a raster image file (PNG, JPG, etc.) as a base64 Data URI."""
+    mime, _ = mimetypes.guess_type(str(raster_path))
+    if not mime:
+        mime = "image/png"
+
+    with open(raster_path, "rb") as img_file:
+        b64_content = base64.b64encode(img_file.read()).decode("ascii")
+
+    data_uri = f"data:{mime};base64,{b64_content}"
+    set_href(image_elem, data_uri)
+
+
+def process_single_svg(svg_path: Path, output_path: Path, base_dir: Path) -> int:
+    """
+    Process an SVG file, embedding all external links (<image>, <use>),
+    and saving the standalone SVG to output_path.
+    Returns the count of embedded external assets.
+    """
+    tree = ET.parse(str(svg_path))
+    root = tree.getroot()
+
+    # Build parent mapping to allow element replacement
+    parent_map = {child: parent for parent in root.iter() for child in parent}
+
+    embedded_count = 0
+
+    # 1. Process <image> elements
+    for image_elem in list(root.iter(f"{{{SVG_NS}}}image")) + list(root.iter("image")):
+        href = get_href(image_elem)
+        if not href or href.startswith("#") or href.startswith("data:"):
+            continue
+
+        target_file = resolve_linked_path(href, svg_path, base_dir)
+        if not target_file:
+            print(f"  ⚠️  Soubor '{href}' odkazovaný z '{svg_path.name}' nebyl nalezen.")
+            continue
+
+        embedded_count += 1
+        ext = target_file.suffix.lower()
+
+        if ext == ".svg":
+            # Embed vector SVG as nested <svg>
+            parent = parent_map.get(image_elem)
+            if parent is not None:
+                new_svg = embed_image_svg(image_elem, target_file, embedded_count)
+                idx = list(parent).index(image_elem)
+                parent.remove(image_elem)
+                parent.insert(idx, new_svg)
+                # Update parent map for new element
+                parent_map[new_svg] = parent
+                for c in new_svg.iter():
+                    for ch in c:
+                        parent_map[ch] = c
+                print(f"  🔗 In-line SVG embedováno: {target_file.name} -> <svg>")
+        else:
+            # Embed raster image as base64 Data URI
+            embed_raster_image(image_elem, target_file)
+            print(f"  🖼️  Rastrový obrázek převeden na data URI: {target_file.name}")
+
+    # 2. Process external <use> elements
+    for use_elem in list(root.iter(f"{{{SVG_NS}}}use")) + list(root.iter("use")):
+        href = get_href(use_elem)
+        if not href or href.startswith("#") or href.startswith("data:"):
+            continue
+
+        parts = href.split("#", 1)
+        file_part = parts[0]
+        frag_id = parts[1] if len(parts) > 1 else None
+
+        target_file = resolve_linked_path(file_part, svg_path, base_dir)
+        if not target_file or target_file.suffix.lower() != ".svg":
+            continue
+
+        embedded_count += 1
+        sub_tree = ET.parse(str(target_file))
+        sub_root = sub_tree.getroot()
+        prefix = f"emb_use_{embedded_count}"
+        prefix_ids_in_tree(sub_root, prefix)
+
+        # Ensure root has <defs>
+        defs_elem = root.find(f"{{{SVG_NS}}}defs")
+        if defs_elem is None:
+            defs_elem = root.find("defs")
+        if defs_elem is None:
+            defs_elem = ET.Element(f"{{{SVG_NS}}}defs")
+            root.insert(0, defs_elem)
+
+        if frag_id:
+            target_id = f"{prefix}_{frag_id}"
+            found_elem = None
+            for e in sub_root.iter():
+                if e.get("id") == target_id:
+                    found_elem = e
+                    break
+            if found_elem is not None:
+                defs_elem.append(found_elem)
+                set_href(use_elem, f"#{target_id}")
+                print(f"  🔗 Vložen externí symbol z {target_file.name}#{frag_id} do <defs>")
+        else:
+            # Embed the whole SVG body as a group
+            container_g = ET.Element(f"{{{SVG_NS}}}g", {"id": f"{prefix}_container"})
+            for child in list(sub_root):
+                container_g.append(child)
+            defs_elem.append(container_g)
+            set_href(use_elem, f"#{prefix}_container")
+            print(f"  🔗 Vložen celý externí SVG {target_file.name} do <defs>")
+
+    # Ensure output directory exists and write standalone SVG
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    tree.write(str(output_path), encoding="utf-8", xml_declaration=True)
+    return embedded_count
+
+
+def run(presets_dir: Path, output_dir: Path, base_dir: Path) -> List[Path]:
+    """
+    Search presets/ folder, embed external resources for all SVG files,
+    and write standalone SVGs into output/.
+    """
+    print(f"\n📦 [Krok 1] Prohledávám složku předvoleb: {presets_dir}...")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    svg_files = sorted(presets_dir.glob("*.svg"))
+    if not svg_files:
+        print(f"  ℹ️  V '{presets_dir}' nebyly nalezeny žádné SVG soubory.")
+        return []
+
+    # Register all namespaces beforehand
+    all_svgs = list(svg_files)
+    if (base_dir / "base").exists():
+        all_svgs.extend((base_dir / "base").glob("*.svg"))
+    register_svg_namespaces(all_svgs)
+
+    processed_files: List[Path] = []
+    for svg_file in svg_files:
+        target_output = output_dir / svg_file.name
+        print(f"  📄 Zpracovávám: {svg_file.name} -> {target_output.name}")
+        embedded_count = process_single_svg(svg_file, target_output, base_dir)
+        print(f"  ✨ Dokončeno '{svg_file.name}' (sloučeno {embedded_count} externích prvků)")
+        processed_files.append(target_output)
+
+    return processed_files
+
+
+if __name__ == "__main__":
+    base_path = Path(__file__).resolve().parent.parent
+    run(base_path / "presets", base_path / "output", base_path)
+
+
+
+================================================
+FILE: scripts/main.py
+================================================
+"""CLI entrypoint for running the pipeline from inside scripts directory."""
+
+import sys
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+from scripts.pipeline import main
+
+if __name__ == "__main__":
+    main()
+
+
+
+================================================
+FILE: scripts/optimize_svg.py
+================================================
+"""Step 3: SVGO optimization for SVG files."""
+
+import shutil
+import subprocess
+from pathlib import Path
+from typing import List, Tuple
+
+
+def get_svgo_command() -> List[str]:
+    """Determine the optimal command to invoke SVGO (local binary or npx)."""
+    if shutil.which("svgo"):
+        return ["svgo"]
+    if shutil.which("npx"):
+        return ["npx", "--yes", "svgo"]
+    raise RuntimeError("SVGO není dostupné. Nainstalujte 'npm install -g svgo' nebo ověřte 'npx'.")
+
+
+def optimize_svg_file(svg_file: Path, svgo_base_cmd: List[str]) -> Tuple[bool, int, int]:
+    """
+    Run SVGO on a single SVG file.
+    Returns (success, initial_size, final_size).
+    """
+    initial_size = svg_file.stat().st_size
+    cmd = svgo_base_cmd + [str(svg_file), "-o", str(svg_file)]
+
+    try:
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+
+        if result.returncode != 0:
+            print(f"  ❌ SVGO selhal pro '{svg_file.name}': {result.stderr.strip()}")
+            return False, initial_size, initial_size
+
+        final_size = svg_file.stat().st_size
+        return True, initial_size, final_size
+
+    except Exception as e:
+        print(f"  ❌ Chyba při spouštění SVGO na '{svg_file.name}': {e}")
+        return False, initial_size, initial_size
+
+
+def run(output_dir: Path) -> List[Path]:
+    """
+    Optimize all SVG files in output/ using SVGO.
+    """
+    print(f"\n⚡ [Krok 3] Optimalizace SVG (SVGO) v: {output_dir}...")
+    svgo_cmd = get_svgo_command()
+    print(f"  🔧 Použitý příkaz: {' '.join(svgo_cmd)}")
+
+    svg_files = sorted(output_dir.glob("*.svg"))
+    if not svg_files:
+        print(f"  ℹ️  V '{output_dir}' nebyly nalezeny žádné SVG soubory.")
+        return []
+
+    optimized_files: List[Path] = []
+    for svg_file in svg_files:
+        success, size_before, size_after = optimize_svg_file(svg_file, svgo_cmd)
+        if success:
+            saved = size_before - size_after
+            percent = (saved / size_before * 100) if size_before > 0 else 0
+            print(
+                f"  ✅ Optimalizováno: {svg_file.name} "
+                f"({size_before / 1024:.1f} KiB -> {size_after / 1024:.1f} KiB, "
+                f"úspora {percent:.1f}%)"
+            )
+            optimized_files.append(svg_file)
+        else:
+            print(f"  ⚠️  Optimalizace se nezdařila pro: {svg_file.name}")
+
+    return optimized_files
+
+
+if __name__ == "__main__":
+    base_path = Path(__file__).resolve().parent.parent
+    run(base_path / "output")
+
+
+
+================================================
+FILE: scripts/pipeline.py
+================================================
+"""Branding Assets Generation Pipeline (Krok 0 až Krok 4)."""
+
+import argparse
+import sys
+import time
+from pathlib import Path
+from typing import Optional
+
+from scripts import check_deps
+from scripts import embed_svg
+from scripts import convert_text
+from scripts import optimize_svg
+from scripts import rasterize
+
+
+class BrandingPipeline:
+    def __init__(self, base_dir: Optional[Path] = None):
+        self.base_dir = (base_dir or Path(__file__).resolve().parent.parent).resolve()
+        self.font_dir = self.base_dir / "font"
+        self.presets_dir = self.base_dir / "presets"
+        self.output_dir = self.base_dir / "output"
+        self.cfg_file = self.base_dir / "cfg.py"
+
+    def clean_output(self) -> None:
+        """Clean all files in output/ directory."""
+        if self.output_dir.exists():
+            for f in self.output_dir.iterdir():
+                if f.is_file():
+                    f.unlink()
+            print(f"🧹 Složka '{self.output_dir.name}' byla vyčištěna.")
+
+    def run_step0(self) -> None:
+        """Krok 0: Kontrola závislostí a instalace fontů."""
+        check_deps.run(self.font_dir)
+
+    def run_step1(self) -> list:
+        """Krok 1: In-line embedování propojených prvků z presets/."""
+        return embed_svg.run(self.presets_dir, self.output_dir, self.base_dir)
+
+    def run_step2(self) -> list:
+        """Krok 2: Inkscape – Převod textu na křivky (Text-to-Path)."""
+        return convert_text.run(self.output_dir)
+
+    def run_step3(self) -> list:
+        """Krok 3: SVGO – Optimalizace SVG."""
+        return optimize_svg.run(self.output_dir)
+
+    def run_step4(self) -> list:
+        """Krok 4: Rasterizace do PNG podle cfg.py."""
+        return rasterize.run(self.output_dir, self.cfg_file)
+
+    def run_all(self, skip_steps: Optional[set] = None) -> bool:
+        """Run complete pipeline sequentially."""
+        skip = skip_steps or set()
+        start_time = time.time()
+
+        print("=" * 65)
+        print("🚀 SPUŠTĚNÍ AUTOMATIZOVANÉ BRANDING ASSETS PIPELINE")
+        print("=" * 65)
+
+        try:
+            if 0 not in skip:
+                self.run_step0()
+
+            if 1 not in skip:
+                self.run_step1()
+
+            if 2 not in skip:
+                self.run_step2()
+
+            if 3 not in skip:
+                self.run_step3()
+
+            if 4 not in skip:
+                self.run_step4()
+
+            elapsed = time.time() - start_time
+            print("\n" + "=" * 65)
+            print(f"🎉 PIPELINE ÚSPĚŠNĚ DOKONČENA za {elapsed:.2f} s")
+            print("=" * 65)
+
+            # Print recap of generated files in output/
+            if self.output_dir.exists():
+                files = sorted(self.output_dir.iterdir())
+                print(f"\n📂 Výstupy ve složce '{self.output_dir.name}/':")
+                for f in files:
+                    if f.is_file():
+                        size_kb = f.stat().st_size / 1024
+                        print(f"  • {f.name:<25} ({size_kb:>7.1f} KiB)")
+            print()
+            return True
+
+        except check_deps.DependencyError as e:
+            print(f"\n{e}", file=sys.stderr)
+            return False
+        except Exception as e:
+            print(f"\n❌ Neočekávaná chyba v pipeline: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc()
+            return False
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Automatizovaná pipeline pro generování branding assetů.")
+    parser.add_argument("--clean", action="store_true", help="Před spuštěním promazat složku output/")
+    parser.add_argument("--skip-step0", action="store_true", help="Přeskočit krok 0 (kontrola závislostí a fonty)")
+    parser.add_argument("--skip-step1", action="store_true", help="Přeskočit krok 1 (embedování)")
+    parser.add_argument("--skip-step2", action="store_true", help="Přeskočit krok 2 (text na křivky)")
+    parser.add_argument("--skip-step3", action="store_true", help="Přeskočit krok 3 (SVGO optimalizace)")
+    parser.add_argument("--skip-step4", action="store_true", help="Přeskočit krok 4 (rasterizace PNG)")
+    parser.add_argument("--step", type=int, choices=[0, 1, 2, 3, 4], help="Spustit pouze vybraný krok")
+
+    args = parser.parse_args()
+
+    pipeline = BrandingPipeline()
+
+    if args.clean:
+        pipeline.clean_output()
+
+    if args.step is not None:
+        steps_to_skip = {0, 1, 2, 3, 4} - {args.step}
+    else:
+        steps_to_skip = set()
+        if args.skip_step0: steps_to_skip.add(0)
+        if args.skip_step1: steps_to_skip.add(1)
+        if args.skip_step2: steps_to_skip.add(2)
+        if args.skip_step3: steps_to_skip.add(3)
+        if args.skip_step4: steps_to_skip.add(4)
+
+    success = pipeline.run_all(skip_steps=steps_to_skip)
+    sys.exit(0 if success else 1)
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+================================================
+FILE: scripts/rasterize.py
+================================================
+"""Step 4: PNG rasterization based on cfg.py configurations."""
+
+import importlib.util
+import re
+import shutil
+import subprocess
+import sys
+import xml.etree.ElementTree as ET
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+FALLBACK_DEFAULT_BASE_WIDTH: int = 2560
+FALLBACK_DEFAULT_RESOLUTION: Tuple[int, int] = (2560, 1440)
+
+
+def get_svg_aspect_ratio(svg_file: Path) -> Optional[Tuple[float, float]]:
+    """Načte rozměry nebo viewBox z SVG souboru pro určení původního poměru stran."""
+    try:
+        tree = ET.parse(str(svg_file))
+        root = tree.getroot()
+
+        # 1. Kontrola viewBox ("min-x min-y width height")
+        vb = root.get("viewBox")
+        if vb:
+            parts = [float(p) for p in re.split(r"[\s,]+", vb.strip()) if p]
+            if len(parts) == 4 and parts[2] > 0 and parts[3] > 0:
+                return parts[2], parts[3]
+
+        # 2. Kontrola atributů width a height
+        w_str = root.get("width")
+        h_str = root.get("height")
+        if w_str and h_str:
+            w = float(re.sub(r"[a-zA-Z%]+$", "", w_str.strip()))
+            h = float(re.sub(r"[a-zA-Z%]+$", "", h_str.strip()))
+            if w > 0 and h > 0:
+                return w, h
+    except Exception:
+        pass
+    return None
+
+
+def calculate_target_resolution(
+    svg_file: Path,
+    resolutions: Dict[str, Tuple[int, int]],
+    base_width: int,
+    default_res: Tuple[int, int],
+) -> Tuple[Tuple[int, int], str]:
+    """
+    Určí rozlišení PNG. Pokud je v cfg.py v RESOLUTIONS, použije ho.
+    Jinak spočítá výšku podle poměru stran z 2K základny (při 1:1 -> 2560x2560).
+    """
+    if svg_file.name in resolutions:
+        return resolutions[svg_file.name], "vlastní z cfg.py"
+
+    dims = get_svg_aspect_ratio(svg_file)
+    if dims:
+        orig_w, orig_h = dims
+        calc_w = base_width
+        calc_h = int(round(base_width * (orig_h / orig_w)))
+
+        ratio_label = (
+            "1:1"
+            if abs(orig_w - orig_h) < 1e-5
+            else f"{orig_w:.2f}:{orig_h:.2f}".rstrip("0").rstrip(".")
+        )
+        return (calc_w, calc_h), f"dynamické (poměr {ratio_label}, 2K báze)"
+
+    return default_res, "výchozí 2K fallback"
+
+
+def load_config(
+    cfg_path: Path,
+) -> Tuple[Dict[str, Tuple[int, int]], int, Tuple[int, int]]:
+    """Dynamicky načte cfg.py z kořene projektu."""
+    resolutions: Dict[str, Tuple[int, int]] = {}
+    base_width = FALLBACK_DEFAULT_BASE_WIDTH
+    default_res = FALLBACK_DEFAULT_RESOLUTION
+
+    if cfg_path.is_file():
+        try:
+            spec = importlib.util.spec_from_file_location("branding_cfg", str(cfg_path))
+            if spec and spec.loader:
+                cfg_module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(cfg_module)
+
+                resolutions = getattr(cfg_module, "RESOLUTIONS", {}) or getattr(
+                    cfg_module, "CONFIG", {}
+                )
+                base_width = getattr(
+                    cfg_module, "DEFAULT_BASE_WIDTH", FALLBACK_DEFAULT_BASE_WIDTH
+                )
+                default_res = getattr(
+                    cfg_module, "DEFAULT_RESOLUTION", FALLBACK_DEFAULT_RESOLUTION
+                )
+                print(f"  📋 Načtena konfigurace z: {cfg_path.name}")
+        except Exception as e:
+            print(
+                f"  ⚠️  Chyba při načítání '{cfg_path.name}': {e}. Použijí se výchozí hodnoty."
+            )
+    else:
+        print(
+            f"  ℹ️  Soubor '{cfg_path.name}' nebyl nalezen. Použijí se výchozí hodnoty."
+        )
+
+    return resolutions, base_width, default_res
+
+
+def rasterize_with_cairosvg(
+    svg_file: Path, png_file: Path, width: int, height: int
+) -> bool:
+    try:
+        import cairosvg
+
+        cairosvg.svg2png(
+            url=str(svg_file),
+            write_to=str(png_file),
+            output_width=width,
+            output_height=height,
+        )
+        return True
+    except ImportError:
+        return False
+    except Exception as e:
+        print(f"  ⚠️  CairoSVG selhalo pro '{svg_file.name}': {e}. Zkouším Inkscape...")
+        return False
+
+
+def rasterize_with_inkscape(
+    svg_file: Path, png_file: Path, width: int, height: int
+) -> bool:
+    inkscape_bin = shutil.which("inkscape")
+    if not inkscape_bin:
+        print("  ❌ Ani CairoSVG ani Inkscape nejsou dostupné pro rasterizaci.")
+        return False
+
+    cmd = [
+        inkscape_bin,
+        str(svg_file),
+        "-o",
+        str(png_file),
+        "-w",
+        str(width),
+        "-h",
+        str(height),
+    ]
+
+    try:
+        res = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+        if res.returncode == 0 and png_file.is_file() and png_file.stat().st_size > 0:
+            return True
+        print(f"  ❌ Inkscape rasterizace selhala: {res.stderr.strip()}")
+        return False
+    except Exception as e:
+        print(f"  ❌ Chyba při spuštění Inkscape rasterizace: {e}")
+        return False
+
+
+def rasterize_svg(svg_file: Path, png_file: Path, width: int, height: int) -> bool:
+    if rasterize_with_cairosvg(svg_file, png_file, width, height):
+        return True
+    return rasterize_with_inkscape(svg_file, png_file, width, height)
+
+
+def run(output_dir: Path, cfg_path: Path) -> List[Path]:
+    print(
+        f"\n🖼️  [Krok 4] Rasterizace do PNG podle '{cfg_path.name}' v: {output_dir}..."
+    )
+    resolutions, base_width, default_res = load_config(cfg_path)
+
+    svg_files = sorted(output_dir.glob("*.svg"))
+    if not svg_files:
+        print(f"  ℹ️  V '{output_dir}' nebyly nalezeny žádné SVG soubory.")
+        return []
+
+    generated_pngs: List[Path] = []
+    for svg_file in svg_files:
+        png_file = output_dir / f"{svg_file.stem}.png"
+        (width, height), config_source = calculate_target_resolution(
+            svg_file, resolutions, base_width, default_res
+        )
+
+        print(
+            f"  📐 {svg_file.name} -> {png_file.name} [{width}x{height} px, {config_source}]"
+        )
+
+        if rasterize_svg(svg_file, png_file, width, height):
+            size_kb = png_file.stat().st_size / 1024
+            print(f"  ✅ PNG vygenerováno: {png_file.name} ({size_kb:.1f} KiB)")
+            generated_pngs.append(png_file)
+        else:
+            print(f"  ❌ Nepodařilo se vygenerovat PNG pro: {svg_file.name}")
+
+    return generated_pngs
+
+
+if __name__ == "__main__":
+    base_path = Path(__file__).resolve().parent.parent
+    run(base_path / "output", base_path / "cfg.py")
+
+
+
+================================================
+FILE: .github/workflows/branding.yml
+================================================
+name: Branding Assets Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: branding-pipeline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-branding-assets:
+    name: Generate Branding Assets
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install system dependencies (Inkscape, fontconfig, libcairo)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y inkscape fontconfig libcairo2-dev
+
+      - name: Install SVGO globally
+        run: |
+          npm install -g svgo
+          svgo --version
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Branding Pipeline
+        run: |
+          python main.py --clean
+
+      - name: Verify generated assets
+        run: |
+          echo "Generated assets in output/:"
+          ls -lh output/
+          if [ -z "$(ls -A output/)" ]; then
+            echo "Error: Output directory is empty!"
+            exit 1
+          fi
+
+      - name: Upload Branding Assets Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: branding-assets
+          path: output/
+          retention-days: 30
+
 
